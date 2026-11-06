@@ -1,0 +1,20 @@
+# Environment
+.env
+*.pyc
+__pycache__/
+
+# Conda
+.conda/
+
+# Dataset
+data/raw/
+data/processed/
+
+# Models
+results/models/
+
+# FCGR grandi
+results/fcgr_images/*
+
+# Notebook checkpoints
+.ipynb_checkpoints/

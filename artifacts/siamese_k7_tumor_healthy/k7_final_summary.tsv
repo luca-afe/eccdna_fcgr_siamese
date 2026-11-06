@@ -1,0 +1,2 @@
+fcgr_k	fcgr_shape	encoder	training	distance	margin	embedding_dim	best_epoch	pairwise_val_auc	pairwise_gap	pairwise_d_prime	prototype_accuracy	prototype_macro_f1	prototype_balanced_accuracy	best_reference_k_macro_f1	reference_k20_accuracy	reference_k20_macro_f1	reference_k20_balanced_accuracy	reference_k50_accuracy	reference_k50_macro_f1	reference_k50_balanced_accuracy
+7	128x128	CNN V3	random_pairs	euclidean	1.25	128	18	0.665868	0.110207	0.601858	0.288629	0.257295	0.301769	20	0.303086	0.284334	0.311636	0.310264	0.284204	0.318278

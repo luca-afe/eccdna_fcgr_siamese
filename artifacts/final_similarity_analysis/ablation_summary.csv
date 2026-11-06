@@ -1,0 +1,7 @@
+experiment,type,val_auc,multiclass_acc,macro_f1
+CNN k6 random,Baseline,0.661052,0.279606,0.243436
+CNN k6 semi-hard + Top20,Negative mining,0.664895,0.30811,0.286888
+CNN k7 random + Top20,FCGR resolution,0.665868,0.303086,0.284334
+Residual CNN,Encoder,0.65695,0.269968,0.235231
+CNN + Transformer,Encoder,0.6313,,
+ViT from scratch,Encoder,0.6284,,

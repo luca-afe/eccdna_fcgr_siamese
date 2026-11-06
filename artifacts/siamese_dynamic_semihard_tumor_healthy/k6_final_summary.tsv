@@ -1,0 +1,2 @@
+fcgr_k	fcgr_shape	encoder	training	distance	margin	embedding_dim	pairwise_val_auc	pairwise_binary_accuracy	prototype_accuracy	prototype_macro_f1	prototype_balanced_accuracy	best_reference_k	reference_accuracy	reference_macro_f1	reference_balanced_accuracy
+6	64x64	CNN V3	dynamic semi-hard	euclidean	1.25	128	0.664895	0.6212	0.288834	0.247915	0.301971	20	0.30811	0.286888	0.313852

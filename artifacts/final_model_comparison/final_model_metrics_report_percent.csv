@@ -1,0 +1,4 @@
+model,train_samples,test_top1,test_macro_f1,test_balanced_accuracy,test_top3,test_top5,test_balanced_top3,test_balanced_top5
+Siamese downsampled,25332,31.580000000000002,27.839999999999996,31.97,65.83,82.53,65.61,82.09
+Siamese full-train balanced,96167,30.6847,26.8841,31.0454,66.4799,83.3352,65.8991,82.50189999999999
+Direct CNN full-train balanced,96167,32.8253,28.578,33.0599,67.5894,84.0861,66.985,82.5723

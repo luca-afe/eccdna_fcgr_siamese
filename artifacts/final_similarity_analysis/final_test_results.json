@@ -1,0 +1,23 @@
+{
+    "model": {
+        "fcgr_k": 6,
+        "encoder": "CNN_V3",
+        "embedding_dim": 128,
+        "embedding_normalization": "L2",
+        "training_loss": "Euclidean Contrastive Loss",
+        "negative_mining": "Dynamic Semi-Hard",
+        "inference": "Top-20 cosine similarity reference bank"
+    },
+    "test": {
+        "top1_accuracy": 0.3158130673540289,
+        "balanced_top1": 0.319700746799431,
+        "top3_accuracy": 0.6582987784377452,
+        "balanced_top3": 0.6560706298403667,
+        "top5_accuracy": 0.8252829765773843,
+        "balanced_top5": 0.8208664388072283,
+        "macro_f1": 0.2783873119107531,
+        "balanced_accuracy": 0.319700746799431,
+        "mean_true_class_rank": 3.2448728006275918,
+        "median_true_class_rank": 2.0
+    }
+}

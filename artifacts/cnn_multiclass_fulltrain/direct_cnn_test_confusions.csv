@@ -1,0 +1,131 @@
+true_class_id,true_class,predicted_class_id,predicted_class,count,percentage_of_true_class
+3,prostate cancer,2,ovarian cancer,338,0.338
+6,cervical adenocarcinoma,0,gastric cancer,261,0.261
+6,cervical adenocarcinoma,5,lymphoma,253,0.253
+8,hypopharyngeal SCC,11,hypopharynx cancer,65,0.22569444444444445
+1,healthy,10,melanoma,209,0.209
+11,hypopharynx cancer,8,hypopharyngeal SCC,22,0.19298245614035087
+9,glioblastoma cancer,7,leukemia,56,0.1891891891891892
+9,glioblastoma cancer,0,gastric cancer,54,0.18243243243243243
+6,cervical adenocarcinoma,4,colorectal cancer,174,0.174
+3,prostate cancer,5,lymphoma,165,0.165
+4,colorectal cancer,0,gastric cancer,165,0.165
+4,colorectal cancer,5,lymphoma,153,0.153
+7,leukemia,10,melanoma,149,0.149
+2,ovarian cancer,5,lymphoma,149,0.149
+7,leukemia,0,gastric cancer,145,0.145
+8,hypopharyngeal SCC,2,ovarian cancer,40,0.1388888888888889
+1,healthy,2,ovarian cancer,137,0.137
+5,lymphoma,4,colorectal cancer,130,0.13
+3,prostate cancer,4,colorectal cancer,116,0.116
+11,hypopharynx cancer,2,ovarian cancer,13,0.11403508771929824
+1,healthy,0,gastric cancer,113,0.113
+10,melanoma,0,gastric cancer,25,0.1111111111111111
+8,hypopharyngeal SCC,1,healthy,31,0.1076388888888889
+4,colorectal cancer,6,cervical adenocarcinoma,104,0.104
+5,lymphoma,0,gastric cancer,97,0.097
+0,gastric cancer,4,colorectal cancer,93,0.093
+7,leukemia,9,glioblastoma cancer,90,0.09
+11,hypopharynx cancer,9,glioblastoma cancer,10,0.08771929824561403
+5,lymphoma,6,cervical adenocarcinoma,87,0.087
+5,lymphoma,2,ovarian cancer,81,0.081
+11,hypopharynx cancer,1,healthy,9,0.07894736842105263
+1,healthy,7,leukemia,78,0.078
+9,glioblastoma cancer,4,colorectal cancer,23,0.0777027027027027
+7,leukemia,5,lymphoma,75,0.075
+9,glioblastoma cancer,8,hypopharyngeal SCC,22,0.07432432432432433
+9,glioblastoma cancer,11,hypopharynx cancer,22,0.07432432432432433
+0,gastric cancer,11,hypopharynx cancer,73,0.073
+4,colorectal cancer,11,hypopharynx cancer,72,0.072
+9,glioblastoma cancer,5,lymphoma,21,0.07094594594594594
+9,glioblastoma cancer,2,ovarian cancer,21,0.07094594594594594
+11,hypopharynx cancer,4,colorectal cancer,8,0.07017543859649122
+0,gastric cancer,9,glioblastoma cancer,70,0.07
+7,leukemia,2,ovarian cancer,69,0.069
+2,ovarian cancer,4,colorectal cancer,66,0.066
+8,hypopharyngeal SCC,4,colorectal cancer,19,0.06597222222222222
+2,ovarian cancer,3,prostate cancer,64,0.064
+8,hypopharyngeal SCC,9,glioblastoma cancer,18,0.0625
+11,hypopharynx cancer,5,lymphoma,7,0.06140350877192982
+9,glioblastoma cancer,10,melanoma,18,0.060810810810810814
+3,prostate cancer,1,healthy,60,0.06
+1,healthy,8,hypopharyngeal SCC,60,0.06
+8,hypopharyngeal SCC,5,lymphoma,17,0.059027777777777776
+7,leukemia,8,hypopharyngeal SCC,59,0.059
+0,gastric cancer,5,lymphoma,56,0.056
+1,healthy,5,lymphoma,55,0.055
+3,prostate cancer,11,hypopharynx cancer,52,0.052
+0,gastric cancer,6,cervical adenocarcinoma,51,0.051
+2,ovarian cancer,11,hypopharynx cancer,50,0.05
+10,melanoma,4,colorectal cancer,11,0.04888888888888889
+3,prostate cancer,9,glioblastoma cancer,47,0.047
+4,colorectal cancer,9,glioblastoma cancer,47,0.047
+1,healthy,11,hypopharynx cancer,46,0.046
+8,hypopharyngeal SCC,7,leukemia,13,0.04513888888888889
+10,melanoma,1,healthy,10,0.044444444444444446
+1,healthy,4,colorectal cancer,44,0.044
+5,lymphoma,3,prostate cancer,44,0.044
+4,colorectal cancer,3,prostate cancer,44,0.044
+11,hypopharynx cancer,3,prostate cancer,5,0.043859649122807015
+0,gastric cancer,7,leukemia,43,0.043
+3,prostate cancer,6,cervical adenocarcinoma,41,0.041
+7,leukemia,11,hypopharynx cancer,41,0.041
+10,melanoma,7,leukemia,9,0.04
+3,prostate cancer,8,hypopharyngeal SCC,40,0.04
+8,hypopharyngeal SCC,0,gastric cancer,11,0.03819444444444445
+11,hypopharynx cancer,0,gastric cancer,4,0.03508771929824561
+11,hypopharynx cancer,7,leukemia,4,0.03508771929824561
+3,prostate cancer,0,gastric cancer,35,0.035
+6,cervical adenocarcinoma,2,ovarian cancer,35,0.035
+7,leukemia,4,colorectal cancer,34,0.034
+10,melanoma,9,glioblastoma cancer,7,0.03111111111111111
+6,cervical adenocarcinoma,3,prostate cancer,30,0.03
+7,leukemia,1,healthy,30,0.03
+2,ovarian cancer,8,hypopharyngeal SCC,29,0.029
+6,cervical adenocarcinoma,11,hypopharynx cancer,28,0.028
+8,hypopharyngeal SCC,3,prostate cancer,8,0.027777777777777776
+1,healthy,9,glioblastoma cancer,27,0.027
+5,lymphoma,7,leukemia,25,0.025
+5,lymphoma,9,glioblastoma cancer,24,0.024
+9,glioblastoma cancer,1,healthy,7,0.02364864864864865
+4,colorectal cancer,2,ovarian cancer,23,0.023
+7,leukemia,6,cervical adenocarcinoma,23,0.023
+6,cervical adenocarcinoma,9,glioblastoma cancer,23,0.023
+10,melanoma,5,lymphoma,5,0.022222222222222223
+2,ovarian cancer,1,healthy,22,0.022
+3,prostate cancer,7,leukemia,22,0.022
+6,cervical adenocarcinoma,7,leukemia,21,0.021
+0,gastric cancer,8,hypopharyngeal SCC,20,0.02
+2,ovarian cancer,0,gastric cancer,19,0.019
+2,ovarian cancer,6,cervical adenocarcinoma,19,0.019
+5,lymphoma,11,hypopharynx cancer,18,0.018
+2,ovarian cancer,9,glioblastoma cancer,17,0.017
+0,gastric cancer,10,melanoma,17,0.017
+4,colorectal cancer,10,melanoma,16,0.016
+1,healthy,6,cervical adenocarcinoma,16,0.016
+2,ovarian cancer,7,leukemia,15,0.015
+0,gastric cancer,1,healthy,14,0.014
+4,colorectal cancer,1,healthy,14,0.014
+1,healthy,3,prostate cancer,14,0.014
+10,melanoma,6,cervical adenocarcinoma,3,0.013333333333333334
+4,colorectal cancer,7,leukemia,12,0.012
+3,prostate cancer,10,melanoma,11,0.011
+0,gastric cancer,3,prostate cancer,10,0.01
+4,colorectal cancer,8,hypopharyngeal SCC,9,0.009
+10,melanoma,11,hypopharynx cancer,2,0.008888888888888889
+11,hypopharynx cancer,10,melanoma,1,0.008771929824561403
+0,gastric cancer,2,ovarian cancer,8,0.008
+7,leukemia,3,prostate cancer,8,0.008
+6,cervical adenocarcinoma,8,hypopharyngeal SCC,7,0.007
+5,lymphoma,8,hypopharyngeal SCC,6,0.006
+10,melanoma,2,ovarian cancer,1,0.0044444444444444444
+10,melanoma,8,hypopharyngeal SCC,1,0.0044444444444444444
+5,lymphoma,1,healthy,4,0.004
+8,hypopharyngeal SCC,10,melanoma,1,0.003472222222222222
+8,hypopharyngeal SCC,6,cervical adenocarcinoma,1,0.003472222222222222
+9,glioblastoma cancer,3,prostate cancer,1,0.0033783783783783786
+9,glioblastoma cancer,6,cervical adenocarcinoma,1,0.0033783783783783786
+6,cervical adenocarcinoma,10,melanoma,2,0.002
+2,ovarian cancer,10,melanoma,2,0.002
+5,lymphoma,10,melanoma,1,0.001
+6,cervical adenocarcinoma,1,healthy,1,0.001

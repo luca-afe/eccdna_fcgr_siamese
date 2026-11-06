@@ -1,0 +1,4 @@
+model,train_samples,balancing,objective,pairwise_auc_val,test_top1,test_macro_f1,test_balanced_accuracy,test_top3,test_top5,test_balanced_top3,test_balanced_top5
+Siamese downsampled,25332,downsampling,contrastive + semi-hard,0.664895,0.3158,0.2784,0.3197,0.6583,0.8253,0.6561,0.8209
+Siamese full-train balanced,96167,balanced batch sampling,contrastive + semi-hard,0.67011,0.306847,0.268841,0.310454,0.664799,0.833352,0.658991,0.825019
+Direct CNN full-train balanced,96167,balanced batch sampling,cross-entropy softmax classifier,,0.328253,0.28578,0.330599,0.675894,0.840861,0.66985,0.825723

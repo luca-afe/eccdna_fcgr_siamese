@@ -1,0 +1,29 @@
+{
+    "best_epoch": 44,
+    "best_val_loss": 0.22386611742973328,
+    "threshold": 0.5299695730209351,
+    "embedding_dim": 128,
+    "margin": 1.0,
+    "k": 6,
+    "validation": {
+        "accuracy": 0.6321,
+        "balanced_accuracy": 0.6323627296372909,
+        "macro_f1": 0.631114008321703,
+        "precision": 0.6170366359862841,
+        "recall": 0.6870980707395499,
+        "roc_auc": 0.6847674170412886
+    },
+    "test": {
+        "accuracy": 0.6196,
+        "balanced_accuracy": 0.6197933781404033,
+        "macro_f1": 0.618103439032744,
+        "precision": 0.6046800212728239,
+        "recall": 0.6842527582748245,
+        "roc_auc": 0.6735154416389747
+    },
+    "best_val_roc_auc": 0.6847674170412886,
+    "normalization": "GroupNorm",
+    "learning_rate": 0.0005,
+    "batch_size": 128,
+    "forward_strategy": "concatenated"
+}

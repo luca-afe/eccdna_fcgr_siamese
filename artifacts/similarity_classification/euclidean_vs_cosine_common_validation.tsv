@@ -1,0 +1,3 @@
+model	training_loss	margin	val_auc	positive_mean	negative_mean	gap	d_prime	score_type
+Euclidean V3	Euclidean Contrastive	1.25	0.6794628199999999	0.5569284558296204	0.6902707815170288	0.13334232568740845	0.6638913750648499	euclidean distance
+Cosine V3	CosineEmbeddingLoss	0.8	0.6621543999999999	0.9140383005142212	0.8685095906257629	0.04552870988845825	0.5480534434318542	cosine similarity
