@@ -3,7 +3,7 @@ PyTorch Dataset classes for eccDNA FCGR Siamese Network training and evaluation.
 
 Includes:
 - `SiamesePairDataset` (on-the-fly sequence -> FCGR pair generation with LRU cache)
-- `SiamesePairDatasetMemmap` (memmap-backed pair generation)
+- `SiamesePairDatasetMemmap` (memmap-backed pair generation, supporting float32/float16/uint8 and 1-ch/multi-ch)
 - `RandomSiamesePairDataset` (static random pairs for deterministic validation/testing)
 - `BalancedSiamesePairDataset` (class-balanced batches for random warm-up)
 - `BalancedSemiHardCandidateDataset` (class-balanced anchors with K negative candidates for dynamic semi-hard mining)
@@ -13,7 +13,7 @@ Includes:
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -26,12 +26,25 @@ from .fcgr import sequence_to_fcgr_tensor
 def _format_fcgr_tensor(arr: np.ndarray) -> torch.Tensor:
     """
     Ensure the returned FCGR array has shape `(C, H, W)` as a `torch.float32` tensor.
-    Supports both 2D `(H, W)` single-channel and 3D `(C, H, W)` multi-channel FCGRs.
+    Supports both 2D `(H, W)` single-channel and 3D `(C, H, W)` multi-channel FCGRs,
+    and automatically dequantizes `uint8` (`0..255` -> `[0.0, 1.0]`).
     """
-    tensor = torch.from_numpy(arr)
+    if arr.dtype == np.uint8:
+        arr_f32 = np.asarray(arr, dtype=np.float32) * np.float32(1.0 / 255.0)
+    else:
+        arr_f32 = np.array(arr, dtype=np.float32, copy=True)
+    tensor = torch.from_numpy(arr_f32)
     if tensor.ndim == 2:
         tensor = tensor.unsqueeze(0)
     return tensor.float()
+
+
+def _load_memmap_tensor(memmap_arr: np.ndarray, row_idx: int) -> torch.Tensor:
+    """
+    Legge una riga da un `np.memmap` (2D o 3D, `float32`, `float16` o `uint8`) e
+    restituisce un tensore PyTorch `(C, H, W)` in `float32`.
+    """
+    return _format_fcgr_tensor(memmap_arr[int(row_idx)])
 
 
 class SiamesePairDataset(Dataset):
@@ -171,13 +184,12 @@ class SiamesePairDatasetMemmap(SiamesePairDataset):
 
     def _compute_fcgr_tensor(self, sample_id: str) -> torch.Tensor:
         row = self.id_to_row[str(sample_id)]
-        fcgr = np.array(self.fcgr_memmap[row], dtype=np.float32, copy=True)
-        return _format_fcgr_tensor(fcgr)
+        return _load_memmap_tensor(self.fcgr_memmap, row)
 
 
 class RandomSiamesePairDataset(Dataset):
     """
-    Coppie statiche pre-campionate con seed fisso per la validazione pairwise (Notebook 14 / 04).
+    Coppie statiche pre-campionate con seed fisso per la validazione pairwise (Notebook 04 / 06).
     """
 
     def __init__(
@@ -243,19 +255,16 @@ class RandomSiamesePairDataset(Dataset):
         return self.n_pairs
 
     def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
-        x1 = np.array(self.fcgr_memmap[int(self.row1[index])], dtype=np.float32, copy=True)
-        x2 = np.array(self.fcgr_memmap[int(self.row2[index])], dtype=np.float32, copy=True)
         return {
-            "x1": _format_fcgr_tensor(x1),
-            "x2": _format_fcgr_tensor(x2),
+            "x1": _load_memmap_tensor(self.fcgr_memmap, int(self.row1[index])),
+            "x2": _load_memmap_tensor(self.fcgr_memmap, int(self.row2[index])),
             "target": torch.tensor(self.targets[index], dtype=torch.float32),
         }
 
 
 class BalancedSiamesePairDataset(Dataset):
     """
-    Dataset di coppie con batch bilanciati per classe (es. 5 anchor per ciascuna delle 12 classi
-    in ogni batch da 60) utilizzato nella fase di Random Warm-Up.
+    Dataset di coppie con batch bilanciati per classe utilizzato nella fase di Random Warm-Up.
     """
 
     def __init__(
@@ -264,7 +273,7 @@ class BalancedSiamesePairDataset(Dataset):
         fcgr_memmap: np.ndarray,
         id_to_row: Dict[str, int],
         n_batches: int,
-        batch_size: int = 60,
+        batch_size: int = 64,
         positive_fraction: float = 0.50,
         seed: int = 42,
     ) -> None:
@@ -337,11 +346,9 @@ class BalancedSiamesePairDataset(Dataset):
         return self.n_pairs
 
     def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
-        x1 = np.array(self.fcgr_memmap[int(self.row1[index])], dtype=np.float32, copy=True)
-        x2 = np.array(self.fcgr_memmap[int(self.row2[index])], dtype=np.float32, copy=True)
         return {
-            "x1": _format_fcgr_tensor(x1),
-            "x2": _format_fcgr_tensor(x2),
+            "x1": _load_memmap_tensor(self.fcgr_memmap, int(self.row1[index])),
+            "x2": _load_memmap_tensor(self.fcgr_memmap, int(self.row2[index])),
             "target": torch.tensor(self.targets[index], dtype=torch.float32),
         }
 
@@ -358,7 +365,7 @@ class BalancedSemiHardCandidateDataset(Dataset):
         fcgr_memmap: np.ndarray,
         id_to_row: Dict[str, int],
         n_batches: int,
-        batch_size: int = 60,
+        batch_size: int = 64,
         n_negative_candidates: int = 6,
         seed: int = 42,
     ) -> None:
@@ -438,27 +445,14 @@ class BalancedSemiHardCandidateDataset(Dataset):
         anchor_idx = int(self.anchor_indices[index])
         positive_idx = int(self.positive_indices[index])
 
-        anchor = np.array(
-            self.fcgr_memmap[int(self.rows[anchor_idx])], dtype=np.float32, copy=True
-        )
-        positive = np.array(
-            self.fcgr_memmap[int(self.rows[positive_idx])], dtype=np.float32, copy=True
-        )
-
         negatives_list = [
-            _format_fcgr_tensor(
-                np.array(
-                    self.fcgr_memmap[int(self.rows[int(neg_idx)])],
-                    dtype=np.float32,
-                    copy=True,
-                )
-            )
+            _load_memmap_tensor(self.fcgr_memmap, int(self.rows[int(neg_idx)]))
             for neg_idx in self.negative_indices[index]
         ]
 
         return {
-            "anchor": _format_fcgr_tensor(anchor),
-            "positive": _format_fcgr_tensor(positive),
+            "anchor": _load_memmap_tensor(self.fcgr_memmap, int(self.rows[anchor_idx])),
+            "positive": _load_memmap_tensor(self.fcgr_memmap, int(self.rows[positive_idx])),
             "negatives": torch.stack(negatives_list, dim=0),
         }
 
@@ -485,12 +479,8 @@ class SingleFCGRDataset(Dataset):
         return len(self.metadata)
 
     def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
-        x = np.array(
-            self.fcgr_memmap[int(self.rows[index])], dtype=np.float32, copy=True
-        )
         return {
-            "x": _format_fcgr_tensor(x),
+            "x": _load_memmap_tensor(self.fcgr_memmap, int(self.rows[index])),
             "label": torch.tensor(self.labels[index], dtype=torch.long),
             "index": torch.tensor(index, dtype=torch.long),
         }
-
