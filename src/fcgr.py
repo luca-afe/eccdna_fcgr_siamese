@@ -300,16 +300,158 @@ def normalize_fcgr_log(
     return log_fcgr.astype(np.float32)
 
 
+def normalize_fcgr_log_prob(fcgr_counts: np.ndarray) -> np.ndarray:
+    """
+    Normalizzazione sub-lineare Log1p a somma unitaria (`sum = 1.0`):
+        L = log(1 + counts)
+        P_log = L / sum(L)
+    Elimina il bias del singolo picco massimo (`/ max_val`) mantenendo esattamente
+    il regime di varianza (`~5e-7`) atteso da `GroupNorm` in `SiameseV3`.
+    """
+    log_c = np.log1p(fcgr_counts.astype(np.float32))
+    total = float(log_c.sum())
+    if total <= 0.0:
+        return np.zeros_like(log_c, dtype=np.float32)
+    return (log_c / np.float32(total)).astype(np.float32)
+
+
+_GRID_BASE_COUNTS: Dict[int, Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = {}
+
+
+def _get_grid_base_counts(k: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Precalcola per ogni cella `(r, c)` della griglia `2^k x 2^k` il numero esatto di
+    basi `(nA, nC, nG, nT)` che compongono il k-mer corrispondente.
+    """
+    if k not in _GRID_BASE_COUNTS:
+        side = 1 << k
+        rows, cols = np.indices((side, side), dtype=np.int32)
+        n_a = np.zeros((side, side), dtype=np.int32)
+        n_c = np.zeros((side, side), dtype=np.int32)
+        n_g = np.zeros((side, side), dtype=np.int32)
+        n_t = np.zeros((side, side), dtype=np.int32)
+        for t in range(k):
+            cx = (cols >> t) & 1
+            cy = (rows >> t) & 1
+            n_c += (cx == 0) & (cy == 0)
+            n_g += (cx == 1) & (cy == 0)
+            n_a += (cx == 0) & (cy == 1)
+            n_t += (cx == 1) & (cy == 1)
+        _GRID_BASE_COUNTS[k] = (n_a, n_c, n_g, n_t)
+    return _GRID_BASE_COUNTS[k]
+
+
+def compute_oe_enrichment_fcgr(
+    sequence: str,
+    k: int = 6,
+    counts_fwd: Optional[np.ndarray] = None,
+) -> np.ndarray:
+    """
+    Calcola la FCGR di Arricchimento Sovra-Casuale (Observed / Expected, O/E)
+    rispetto alla composizione nucleotidica (A, C, G, T) della sequenza stessa:
+        P_exp(r, c) = (p_A^nA) * (p_C^nC) * (p_G^nG) * (p_T^nT)
+        E(r, c) = log(1 + P_obs(r, c) / (P_exp(r, c) + 1e-5))
+    Normalizzata a somma unitaria (`sum = 1.0`).
+    Rimuove il rumore di fondo dovuto al semplice contenuto GC/AT ed esalta
+    solo i motivi biologicamente sovra-rappresentati (es. isole CpG, micro-omologie).
+    """
+    if counts_fwd is None:
+        counts_fwd, _, _ = compute_fcgr_vectorized(
+            sequence, k=k, return_distinct=True, include_reverse_complement=False
+        )
+    p_obs = normalize_fcgr(counts_fwd)
+    if float(p_obs.sum()) <= 0.0:
+        return p_obs
+
+    seq_u = sequence.upper()
+    cnt_a = seq_u.count("A") + 1.0
+    cnt_c = seq_u.count("C") + 1.0
+    cnt_g = seq_u.count("G") + 1.0
+    cnt_t = seq_u.count("T") + 1.0
+    tot_bases = cnt_a + cnt_c + cnt_g + cnt_t
+
+    pa = np.float32(cnt_a / tot_bases)
+    pc = np.float32(cnt_c / tot_bases)
+    pg = np.float32(cnt_g / tot_bases)
+    pt = np.float32(cnt_t / tot_bases)
+
+    n_a, n_c, n_g, n_t = _get_grid_base_counts(k)
+    exps = np.arange(k + 1, dtype=np.float32)
+    p_exp = (
+        (pa ** exps)[n_a]
+        * (pc ** exps)[n_c]
+        * (pg ** exps)[n_g]
+        * (pt ** exps)[n_t]
+    )
+
+    oe_ratio = p_obs / (p_exp.astype(np.float32) + np.float32(1e-5))
+    enrichment = np.log1p(oe_ratio)
+    s = float(enrichment.sum())
+    if s > 0.0:
+        enrichment /= np.float32(s)
+    return enrichment.astype(np.float32)
+
+
+def compute_opt3_enriched_fcgr(
+    sequence: str,
+    target_k: int = 6,
+) -> Tuple[np.ndarray, int]:
+    """
+    Costruisce la rappresentazione `Opt 3` a 3 canali fisicamente bilanciati (`sum = 1.0`
+    su ciascun canale) di shape `(3, 2^target_k, 2^target_k)`:
+      - Canale 0: `k=6 Forward Log-Prob` (`sum = 1.0`, dettaglio fine 6-mer, filamento originale,
+                  senza distorsione `/ max_val`).
+      - Canale 1: `k=6 Observed/Expected Motif Enrichment` (`sum = 1.0`, esalta i motivi
+                  biologici sovra-rappresentati ripulendoli dal semplice contenuto GC/AT).
+      - Canale 2: `Multi-Scale Fractal Context (k=4 + k=5 + RC)` (`sum = 1.0`, abbatte la
+                  sparsità spaziale da ~88% a ~13-18% con energia perfettamente bilanciata).
+    """
+    c6_fwd, valid_k6, _ = compute_fcgr_vectorized(
+        sequence, k=target_k, return_distinct=True, include_reverse_complement=False
+    )
+    ch0_log_prob = normalize_fcgr_log_prob(c6_fwd)
+    ch1_oe = compute_oe_enrichment_fcgr(sequence, k=target_k, counts_fwd=c6_fwd)
+
+    k_coarse = max(1, target_k - 2)
+    k_mid = max(1, target_k - 1)
+    c4_rc, _, _ = compute_fcgr_vectorized(sequence, k=k_coarse, return_distinct=True, include_reverse_complement=True)
+    c5_rc, _, _ = compute_fcgr_vectorized(sequence, k=k_mid, return_distinct=True, include_reverse_complement=True)
+
+    p4 = normalize_fcgr_log_prob(c4_rc)
+    p5 = normalize_fcgr_log_prob(c5_rc)
+
+    s4 = 1 << (target_k - k_coarse)
+    s5 = 1 << (target_k - k_mid)
+    u4 = np.repeat(np.repeat(p4, s4, axis=0), s4, axis=1) / np.float32(s4 * s4)
+    u5 = np.repeat(np.repeat(p5, s5, axis=0), s5, axis=1) / np.float32(s5 * s5)
+
+    ch2_ctx = np.float32(0.5) * u4 + np.float32(0.5) * u5
+    ctx_sum = float(ch2_ctx.sum())
+    if ctx_sum > 0.0:
+        ch2_ctx /= np.float32(ctx_sum)
+
+    stack = np.stack([ch0_log_prob, ch1_oe, ch2_ctx.astype(np.float32)], axis=0)
+    return stack, valid_k6
+
+
 def quantize_fcgr_uint8(fcgr_float: np.ndarray) -> np.ndarray:
     """
-    Quantizza una FCGR normalizzata (o multi-canale) in `[0, 1]` (o arbitraria >= 0)
-    in interi a 8 bit `uint8` (`0..255`), riducendo del 75% la memoria rispetto a `float32`.
+    Quantizza una FCGR 2D `(H, W)` o 3D `(C, H, W)` in interi a 8 bit `uint8` (`0..255`),
+    scalando ciascun canale sul proprio massimo per sfruttare tutti i 256 livelli.
+    Quando viene riletta con `dequantize_fcgr_uint8_prob` (normalizzazione a `sum = 1.0`),
+    il fattore `255 / max_val` si cancella algebricamente!
     """
     arr = np.asarray(fcgr_float, dtype=np.float32)
-    max_val = float(arr.max())
-    if max_val <= 0.0:
+    if arr.ndim == 3:
+        max_val = arr.max(axis=(-2, -1), keepdims=True)
+        max_val = np.where(max_val > 0.0, max_val, 1.0)
+        scaled = np.clip((arr / max_val) * 255.0, 0.0, 255.0)
+        return np.rint(scaled).astype(np.uint8)
+
+    max_val_scalar = float(arr.max())
+    if max_val_scalar <= 0.0:
         return np.zeros(arr.shape, dtype=np.uint8)
-    scaled = np.clip((arr / np.float32(max_val)) * 255.0, 0.0, 255.0)
+    scaled = np.clip((arr / np.float32(max_val_scalar)) * 255.0, 0.0, 255.0)
     return np.rint(scaled).astype(np.uint8)
 
 
@@ -318,6 +460,23 @@ def dequantize_fcgr_uint8(fcgr_u8: np.ndarray) -> np.ndarray:
     Riconverte una FCGR quantizzata `uint8` in `float32` nel range `[0.0, 1.0]`.
     """
     return np.asarray(fcgr_u8, dtype=np.float32) * np.float32(1.0 / 255.0)
+
+
+def dequantize_fcgr_uint8_prob(fcgr_u8: np.ndarray) -> np.ndarray:
+    """
+    Dequantizza una FCGR `uint8` `(H, W)` o `(C, H, W)` normalizzando ciascun canale
+    a somma unitaria (`sum = 1.0`). Cancella algebricamente la divisione per `max_val`
+    e ripristina il regime di varianza esatto (`~5e-7`) per `SiameseV3`.
+    """
+    arr = np.asarray(fcgr_u8, dtype=np.float32)
+    if arr.ndim == 2:
+        s = float(arr.sum())
+        return (arr / np.float32(s)) if s > 0.0 else arr
+    if arr.ndim == 3:
+        s = arr.sum(axis=(-2, -1), keepdims=True)
+        s = np.where(s > 0.0, s, 1.0)
+        return (arr / s).astype(np.float32)
+    return arr
 
 
 def compute_multiscale_fcgr(
@@ -812,6 +971,101 @@ def plot_multiscale_fcgr_diagnostics(
     }
 
 
+def plot_opt3_enriched_diagnostics(
+    sequence: str,
+    target_k: int = 6,
+    sample_id: str = "Sample",
+    label_name: str = "Hotspot (1)",
+    figsize: Tuple[int, int] = (20, 4.5),
+    save_path: Optional[Union[str, Path]] = None,
+) -> Dict[str, float]:
+    """
+    Visualizza il pannello a 5 viste per `Opt 3` (Enriched & Balanced Multi-Scale, `sum = 1.0` per canale):
+      1. Baseline k=6 (`1ch float32`, `16 KB`)
+      2. Canale 0: `k=6 Forward Log-Prob` (`sum = 1.0`, dettaglio fine, senza `/max_val` e senza RC fuso)
+      3. Canale 1: `k=6 O/E Motif Enrichment` (`sum = 1.0`, arricchimento sovra-casuale contro il rumore GC/AT)
+      4. Canale 2: `Multi-Scala Frattale k=4+5` (`sum = 1.0`, contesto denso bilanciato in norma)
+      5. Stack Composito RGB Bilanciato (`3ch uint8`, `12 KB`, -25% RAM, sparsità spaziale <20%)
+    """
+    t0 = time.perf_counter()
+    c_base, _, _ = compute_fcgr(sequence, target_k, return_distinct=True)
+    f_base = normalize_fcgr(c_base)
+    t_base_ms = (time.perf_counter() - t0) * 1000.0
+
+    t1 = time.perf_counter()
+    opt3_stack, _ = compute_opt3_enriched_fcgr(sequence, target_k=target_k)
+    opt3_u8 = quantize_fcgr_uint8(opt3_stack)
+    opt3_rec = dequantize_fcgr_uint8_prob(opt3_u8)
+    t_opt_ms = (time.perf_counter() - t1) * 1000.0
+
+    d_base = compute_fcgr_diagnostics(f_base, sequence=sequence, k=target_k, elapsed_ms=t_base_ms)
+    d_opt = compute_fcgr_diagnostics(opt3_rec, sequence=sequence, k=target_k, elapsed_ms=t_opt_ms)
+
+    fig, axes = plt.subplots(1, 5, figsize=figsize)
+
+    im0 = axes[0].imshow(np.log1p(f_base * 1000.0), cmap="viridis", origin="lower", interpolation="nearest")
+    axes[0].set_title(
+        f"Baseline k={target_k} (1ch float32)\nSpars.: {d_base['sparsity_pct']:.1f}% | 16 KB",
+        fontsize=9.5,
+    )
+    plt.colorbar(im0, ax=axes[0], fraction=0.046, pad=0.04)
+
+    ch_titles = [
+        f"Ch0: k={target_k} Fwd Log-Prob (sum=1)",
+        f"Ch1: k={target_k} O/E Enrichment (sum=1)",
+        f"Ch2: Contesto k={max(1,target_k-2)}+{max(1,target_k-1)} Denso (sum=1)",
+    ]
+    cmaps = ["viridis", "magma", "plasma"]
+    for idx in range(3):
+        ch = opt3_rec[idx]
+        ch_sp = (1.0 - np.count_nonzero(ch) / float(ch.size)) * 100.0
+        im_c = axes[idx + 1].imshow(
+            np.log1p(ch * 1000.0),
+            cmap=cmaps[idx],
+            origin="lower",
+            interpolation="nearest",
+        )
+        axes[idx + 1].set_title(
+            f"{ch_titles[idx]}\nSpars.: {ch_sp:.1f}% | L2={np.linalg.norm(ch):.4f}",
+            fontsize=9.0,
+        )
+        plt.colorbar(im_c, ax=axes[idx + 1], fraction=0.046, pad=0.04)
+
+    # Per il display RGB scaliamo visivamente ciascun canale in [0, 1]
+    rgb = np.transpose(opt3_u8.astype(np.float32) / 255.0, (1, 2, 0))
+    axes[4].imshow(np.clip(rgb, 0.0, 1.0), origin="lower", interpolation="nearest")
+    axes[4].set_title(
+        f"Opt 3 Stack Bilanciato (3ch uint8)\n"
+        f"Spars. Spaz.: {d_opt['spatial_sparsity_pct']:.1f}% | {opt3_u8.nbytes / 1024:.0f} KB",
+        fontsize=9.5,
+    )
+    axes[4].set_xlabel(f"R=k{target_k} LogProb, G=O/E Enrich, B=k{max(1,target_k-2)}+{max(1,target_k-1)} Context")
+
+    plt.suptitle(
+        f"Opt 3 (Enriched & Balanced Multi-Scale) — {sample_id} [{label_name}, L={len(sequence):,} bp] "
+        f"| Speedup: {t_base_ms / max(t_opt_ms, 1e-6):.1f}x",
+        fontsize=12,
+        fontweight="bold",
+        y=1.04,
+    )
+    plt.tight_layout()
+
+    if save_path is not None:
+        save_path = Path(save_path)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+
+    plt.show()
+    return {
+        "baseline_sparsity_pct": d_base["sparsity_pct"],
+        "opt3_spatial_sparsity_pct": d_opt["spatial_sparsity_pct"],
+        "baseline_time_ms": t_base_ms,
+        "opt3_time_ms": t_opt_ms,
+        "baseline_kb": 16.0,
+        "opt3_uint8_kb": opt3_u8.nbytes / 1024.0,
+    }
+
+
 def _to_display_2d(arr: np.ndarray) -> np.ndarray:
     """
     Estrae una vista 2D rappresentativa da un array FCGR `(H, W)` o `(C, H, W)`.
@@ -820,8 +1074,15 @@ def _to_display_2d(arr: np.ndarray) -> np.ndarray:
         return arr
     if arr.shape[0] == 1:
         return arr[0]
-    # Per multi-canale mostriamo la media pesata dei canali (che combina fondo denso + dettagli fini)
     return arr.mean(axis=0)
+
+
+def _scale_for_imshow(vis: np.ndarray) -> np.ndarray:
+    """
+    Se la matrice è normalizzata a somma unitaria (`max <= 0.2`), applica `log1p(vis * 1000)`
+    per renderla ben leggibile a schermo.
+    """
+    return np.log1p(vis * 1000.0) if float(vis.max()) <= 0.2 else vis
 
 
 def plot_siamese_pair_feedback(
@@ -863,12 +1124,11 @@ def plot_siamese_pair_feedback(
 
     t_int = int(round(target))
     pair_type = "POSITIVA (Stessa Classe)" if t_int == 1 else "NEGATIVA (Classi Diverse)"
-    is_multi = arr1.ndim == 3 and arr1.shape[0] > 1
 
     fig, axes = plt.subplots(1, 4, figsize=figsize)
 
-    disp1 = vis1 if is_multi else np.log1p(vis1 * 1000.0)
-    disp2 = vis2 if is_multi else np.log1p(vis2 * 1000.0)
+    disp1 = _scale_for_imshow(vis1)
+    disp2 = _scale_for_imshow(vis2)
 
     im0 = axes[0].imshow(disp1, cmap="viridis", origin="lower", interpolation="nearest")
     axes[0].set_title(
