@@ -20,17 +20,18 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
-from .fcgr import sequence_to_fcgr_tensor
+from .fcgr import dequantize_fcgr_uint8_prob, sequence_to_fcgr_tensor
 
 
 def _format_fcgr_tensor(arr: np.ndarray) -> torch.Tensor:
     """
     Ensure the returned FCGR array has shape `(C, H, W)` as a `torch.float32` tensor.
     Supports both 2D `(H, W)` single-channel and 3D `(C, H, W)` multi-channel FCGRs,
-    and automatically dequantizes `uint8` (`0..255` -> `[0.0, 1.0]`).
+    and automatically dequantizes `uint8` to probability scale (`sum = 1.0` per channel),
+    cancelling out `/ max_val` distortion and matching the variance regime of `SiameseV3`.
     """
     if arr.dtype == np.uint8:
-        arr_f32 = np.asarray(arr, dtype=np.float32) * np.float32(1.0 / 255.0)
+        arr_f32 = dequantize_fcgr_uint8_prob(arr)
     else:
         arr_f32 = np.array(arr, dtype=np.float32, copy=True)
     tensor = torch.from_numpy(arr_f32)
