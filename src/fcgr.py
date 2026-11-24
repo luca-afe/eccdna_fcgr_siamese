@@ -23,6 +23,7 @@ Contains:
 from __future__ import annotations
 
 import time
+from collections import Counter
 from pathlib import Path
 from typing import Dict, Iterable, Optional, Sequence, Tuple, Union
 
@@ -477,6 +478,99 @@ def dequantize_fcgr_uint8_prob(fcgr_u8: np.ndarray) -> np.ndarray:
         s = np.where(s > 0.0, s, 1.0)
         return (arr / s).astype(np.float32)
     return arr
+
+
+def compute_fcgr_sota_dict(
+    sequence: str,
+    k: int,
+    return_distinct: bool = True,
+) -> Union[Tuple[np.ndarray, int, int], Tuple[np.ndarray, int]]:
+    """
+    Implementazione Stato dell'Arte basata su Dizionario / Sliding-Window `Counter`
+    (approccio classico in letteratura tipo DeLUCS / Randhawa et al.):
+    estrae tutti i k-mer in Python con `Counter` e calcola le coordinate CGR una sola
+    volta per ciascun k-mer distinto.
+    """
+    seq = sequence.upper()
+    size = 1 << k
+    fcgr_counts = np.zeros((size, size), dtype=np.int32)
+    n = len(seq)
+    if n < k:
+        return (fcgr_counts, 0, 0) if return_distinct else (fcgr_counts, 0)
+
+    kmer_counts = Counter(seq[i : i + k] for i in range(n - k + 1))
+    valid_kmers = 0
+    for kmer, count in kmer_counts.items():
+        if any(base not in CGR_CORNERS for base in kmer):
+            continue
+        x = 0.5
+        y = 0.5
+        for base in kmer:
+            cx, cy = CGR_CORNERS[base]
+            x = (x + cx) * 0.5
+            y = (y + cy) * 0.5
+        col = min(int(x * size), size - 1)
+        row = min(int(y * size), size - 1)
+        fcgr_counts[row, col] += count
+        valid_kmers += count
+
+    if return_distinct:
+        return fcgr_counts, valid_kmers, int(np.count_nonzero(fcgr_counts))
+    return fcgr_counts, valid_kmers
+
+
+def compute_fcgr_sota_pfcgr(
+    sequence: str,
+    k: int = 6,
+) -> Tuple[np.ndarray, int]:
+    """
+    Implementazione Stato dell'Arte della Positional FCGR (PFCGR — Avila Cartes et al.):
+    costruisce un tensore a 3 canali `float32` di shape `(3, 2^k, 2^k)`:
+      - Canale 0: Frequenza relativa dei k-mer (`sum = 1.0`)
+      - Canale 1: Posizione media normalizzata in `[0, 1]` di ciascun k-mer nella sequenza
+      - Canale 2: Deviazione standard normalizzata delle posizioni di ciascun k-mer
+    """
+    size = 1 << k
+    limit = 1 << (2 * k)
+    n = len(sequence)
+    if n < k:
+        return np.zeros((3, size, size), dtype=np.float32), 0
+
+    lut = _get_k_lut(k)
+    ascii_arr = np.frombuffer(sequence.encode("ascii", errors="replace"), dtype=np.uint8)
+    encoded = lut[ascii_arr]
+
+    n_windows = n - k + 1
+    flat_idx = encoded[:n_windows].copy()
+    for t in range(1, k):
+        flat_idx |= encoded[t : t + n_windows] << t
+
+    positions = np.linspace(0.0, 1.0, num=n_windows, dtype=np.float64)
+    if np.any(flat_idx >= limit):
+        valid_mask = flat_idx < limit
+        flat_idx = flat_idx[valid_mask]
+        positions = positions[valid_mask]
+
+    valid_kmers = int(flat_idx.size)
+    if valid_kmers == 0:
+        return np.zeros((3, size, size), dtype=np.float32), 0
+
+    counts_1d = np.bincount(flat_idx, minlength=limit).astype(np.float64)
+    sum_pos = np.bincount(flat_idx, weights=positions, minlength=limit)
+    sum_pos_sq = np.bincount(flat_idx, weights=positions * positions, minlength=limit)
+
+    nz = counts_1d > 0
+    mean_pos = np.zeros(limit, dtype=np.float64)
+    std_pos = np.zeros(limit, dtype=np.float64)
+    mean_pos[nz] = sum_pos[nz] / counts_1d[nz]
+    var_pos = np.maximum(0.0, (sum_pos_sq[nz] / counts_1d[nz]) - (mean_pos[nz] ** 2))
+    std_pos[nz] = np.sqrt(var_pos)
+
+    freq_2d = (counts_1d / float(valid_kmers)).astype(np.float32).reshape((size, size))
+    mean_2d = mean_pos.astype(np.float32).reshape((size, size))
+    std_2d = std_pos.astype(np.float32).reshape((size, size))
+
+    return np.stack([freq_2d, mean_2d, std_2d], axis=0), valid_kmers
 
 
 def compute_multiscale_fcgr(
